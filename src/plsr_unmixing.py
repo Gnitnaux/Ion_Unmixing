@@ -510,7 +510,7 @@ def _plot_group_errorbars(sample_df, response_mode):
         if mx <= 0:
             mx = 1
         ax.plot([0, mx], [0, mx], 'r--', lw=1)
-        ax.set_xlim(-2, mx); ax.set_ylim(-2, mx)
+        ax.set_xlim(-0.2, mx); ax.set_ylim(-0.2, mx)
         ax.set_xlabel(f"True {a} ({unit})")
         ax.set_ylabel(f"Predicted {a} ({unit})")
         mask = t > 0
