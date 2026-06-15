@@ -145,7 +145,8 @@ def airPLS(x, lambda_=1e7, porder=3, itermax=15):
 
 
 def preprocess_data(Raman_Shifts, intensities, cut_range=(0, 2000),
-                    lamb=1e7, polyorder=3, max_iters=150, plot=False):
+                    lamb=1e7, polyorder=3, max_iters=150, plot=False,
+                    minmax_normalize=True):
     """Preprocess spectral data: cut to a Raman Shift range and remove
     baseline via airPLS.
 
@@ -166,6 +167,10 @@ def preprocess_data(Raman_Shifts, intensities, cut_range=(0, 2000),
     plot : bool, optional
         Whether to plot the original and baseline-corrected spectra for
         the first few spectra (default: False).
+    minmax_normalize : bool, optional
+        Whether to apply min-max normalization to [0, 1] (default: True).
+        Set to False for PLSR quantification where concentration-dependent
+        intensity differences must be preserved.
 
     Returns
     -------
@@ -198,14 +203,15 @@ def preprocess_data(Raman_Shifts, intensities, cut_range=(0, 2000),
         processed_intensities[i] = processed_intensities[i] - baseline
 
     # min-max normalization to [0, 1]
-    for i in range(len(processed_intensities)):
-        min_val = processed_intensities[i].min()
-        max_val = processed_intensities[i].max()
-        if max_val > min_val:  # Avoid division by zero
-            processed_intensities[i] = (
-                processed_intensities[i] - min_val) / (max_val - min_val)
-        else:
-            processed_intensities[i] = np.zeros_like(processed_intensities[i])
+    if minmax_normalize:
+        for i in range(len(processed_intensities)):
+            min_val = processed_intensities[i].min()
+            max_val = processed_intensities[i].max()
+            if max_val > min_val:  # Avoid division by zero
+                processed_intensities[i] = (
+                    processed_intensities[i] - min_val) / (max_val - min_val)
+            else:
+                processed_intensities[i] = np.zeros_like(processed_intensities[i])
 
     # ---- Optional diagnostic plot ----
     if plot:
@@ -215,6 +221,7 @@ def preprocess_data(Raman_Shifts, intensities, cut_range=(0, 2000),
         plt.xlabel('Raman Shift (cm⁻¹)')
         plt.ylabel('Intensity')
         plt.title('Preprocessed Spectra')
+        plt.savefig('visualization/preprocessed_spectra.png', dpi=600)
         plt.show(block = False)
         # wait for 5s then close the plot
         plt.pause(5)

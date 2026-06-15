@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 
 from src.utils import read_data, preprocess_data
+from src.plsr_unmixing import run_plsr_unmixing
 
 # Add src directory to Python path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -77,8 +78,16 @@ def main():
         
     elif args.mode == "plsr_unmixing":
         print("\nPLSR Unmixing mode selected.")
-        # Placeholder for PLSR unmixing implementation
-        print("PLSR unmixing functionality is not yet implemented.")
+        print("Multi-output PLSR (concentration + ratio) for Cu/Fe/Zn.")
+        data_path = os.path.join('data', args.data)
+        mix_filter = {'mix_only': False, 'present_conc_range': None}
+        run_plsr_unmixing(
+            data_path, args.model_dir, plot=True,
+            **mix_filter,
+            peak_position=250, peak_range=20,
+            cut_range=(0, 2000)
+        )
+        print("PLSR unmixing completed.")
 
 
     print("\nDone!")
