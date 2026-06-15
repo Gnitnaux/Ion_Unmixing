@@ -70,9 +70,9 @@ def main():
         print(f"Groups: {len(set(group_numbers))}, "
               f"Spectra: {len(intensities)}, "
               f"Raman points: {len(Raman_Shifts)}")
-        processed_intensities = preprocess_data(
-            Raman_Shifts, intensities,plot = True
-            )
+        cut_Raman_Shifts, processed_intensities = preprocess_data(
+            Raman_Shifts, intensities, cut_range=(0, 2000), plot=True
+        )
 
         
     elif args.mode == "plsr_unmixing":
