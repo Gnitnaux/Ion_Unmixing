@@ -10,8 +10,8 @@ data/*
 
 
 # Model files
-models/*
-!models/.gitkeep
+model/*
+!model/.gitkeep
 
 # Python
 __pycache__/
