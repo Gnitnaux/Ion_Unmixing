@@ -55,24 +55,17 @@ def main():
     )
 
     parser.add_argument(
-        "--stage1",
+        "--unfreeze",
         action="store_true",
         default=False,
-        help="Run Stage 1 BYOL pre-training"
+        help="Enable Stage 2 Phase 2: unfreeze encoder for end-to-end fine-tuning"
     )
 
     parser.add_argument(
-        "--stage2",
-        action="store_true",
-        default=False,
-        help="Run Stage 2 classification fine-tuning"
-    )
-
-    parser.add_argument(
-        "--re-training",
-        action="store_true",
-        default=False,
-        help="Retrain from scratch (ignore checkpoints)"
+        "--unfreeze-epochs",
+        type=int,
+        default=50,
+        help="Number of epochs for unfreeze phase (default: 50, only used with --unfreeze)"
     )
 
     args = parser.parse_args()
@@ -114,17 +107,23 @@ def main():
     elif args.mode == "byol_pipeline":
         print("\nBYOL Peak-Token Pipeline mode selected.")
         print("Stage 1: BYOL pre-training on peak tokens.")
-        print("Stage 2: 5-level concentration classification.")
+        print("Stage 2: 5-level concentration classification "
+              "(frozen encoder, plan B).")
         data_path = os.path.join('data', args.data)
-        # Run both stages if neither --stage1 nor --stage2 specified
-        run_stage1 = args.stage1 or (not args.stage1 and not args.stage2)
-        run_stage2 = args.stage2 or (not args.stage1 and not args.stage2)
         mix_filter = {'mix_only': False, 'present_conc_range': None}
+        # Build config override for unfreeze
+        config_override = {}
+        if args.unfreeze:
+            config_override["stage2_full_epochs"] = args.unfreeze_epochs
+            print(f"  Phase 2 unfreeze enabled: {args.unfreeze_epochs} epochs")
+        else:
+            print("  Phase 2 unfreeze: disabled (use --unfreeze to enable)")
         run_byol_pipeline(
             data_path, args.model_dir, plot=True,
             **mix_filter,
-            stage1=run_stage1, stage2=run_stage2,
-            re_training=args.re_training,
+            stage1=True, stage2=True,
+            re_training=True,
+            config=config_override,
             cut_range=(0, 2500),
         )
         print("BYOL pipeline completed.")

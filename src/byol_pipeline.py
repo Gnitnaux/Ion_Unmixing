@@ -73,13 +73,13 @@ BYOL_CONFIG = {
     "mask_ratio_min": 0.05,
     "mask_ratio_max": 0.10,
     # Stage 1 training
-    "stage1_epochs": 20,
+    "stage1_epochs": 50,
     "stage1_batch_size": 64,
     "stage1_lr": 1e-3,
     # Stage 2 training
-    "stage2_frozen_epochs": 20,
-    "stage2_full_epochs": 50,
-    "stage2_batch_size": 32,
+    "stage2_frozen_epochs": 40,
+    "stage2_full_epochs": 0,   # 0 = skip unfreeze (plan B: frozen encoder only)
+    "stage2_batch_size": 64,
     "stage2_lr": 1e-3,
     # Classification
     "num_classes": 5,
@@ -799,7 +799,11 @@ def _stage2_finetune(peaks_tensor, peak_mask, labels, df_all,
     print("Stage 2: Multi-Class Classification Fine-tuning")
     print("=" * 60)
     print(f"  Frozen phase: {cfg['stage2_frozen_epochs']} epochs")
-    print(f"  Full phase: {cfg['stage2_full_epochs']} epochs")
+    if cfg['stage2_full_epochs'] > 0:
+        print(f"  Full phase: {cfg['stage2_full_epochs']} epochs "
+              f"(unfreeze encoder)")
+    else:
+        print(f"  Full phase: skipped (plan B: frozen encoder only)")
     print(f"  Task: 3 x 5-class classification (Cu/Fe/Zn levels)")
 
     N = peaks_tensor.shape[0]
@@ -863,36 +867,37 @@ def _stage2_finetune(peaks_tensor, peak_mask, labels, df_all,
             if (epoch + 1) % 10 == 0 or epoch == 0:
                 print(f"    Epoch {epoch + 1:2d}: loss={epoch_loss / n:.4f}")
 
-        # --- Phase 2: unfreeze all ---
-        print(f"  Phase 2: unfreeze all ({cfg['stage2_full_epochs']} ep)")
-        for p in encoder.parameters():
-            p.requires_grad = True
-        encoder.train()
-        optimizer = torch.optim.Adam(
-            list(encoder.parameters()) + list(head.parameters()),
-            lr=cfg["stage2_lr"] * 0.1)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=cfg["stage2_full_epochs"])
+        # --- Phase 2: unfreeze all (only if stage2_full_epochs > 0) ---
+        if cfg["stage2_full_epochs"] > 0:
+            print(f"  Phase 2: unfreeze all ({cfg['stage2_full_epochs']} ep)")
+            for p in encoder.parameters():
+                p.requires_grad = True
+            encoder.train()
+            optimizer = torch.optim.Adam(
+                list(encoder.parameters()) + list(head.parameters()),
+                lr=cfg["stage2_lr"] * 0.1)
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer, T_max=cfg["stage2_full_epochs"])
 
-        for epoch in range(cfg["stage2_full_epochs"]):
-            epoch_loss, n = 0.0, 0
-            perm = torch.randperm(X_tr_p.shape[0])
-            for start in range(0, X_tr_p.shape[0], cfg["stage2_batch_size"]):
-                idx = perm[start:start + cfg["stage2_batch_size"]]
-                bx, bm, by = X_tr_p[idx], M_tr_p[idx], Y_tr[idx]
-                feats = encoder(bx, bm)
-                logits_cu, logits_fe, logits_zn = head(feats)
-                loss = (F.cross_entropy(logits_cu, by[:, 0]) +
-                        F.cross_entropy(logits_fe, by[:, 1]) +
-                        F.cross_entropy(logits_zn, by[:, 2]))
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-                epoch_loss += loss.item() * bx.size(0)
-                n += bx.size(0)
-            scheduler.step()
-            if (epoch + 1) % 10 == 0 or epoch == 0:
-                print(f"    Epoch {epoch + 1:2d}: loss={epoch_loss / n:.4f}")
+            for epoch in range(cfg["stage2_full_epochs"]):
+                epoch_loss, n = 0.0, 0
+                perm = torch.randperm(X_tr_p.shape[0])
+                for start in range(0, X_tr_p.shape[0], cfg["stage2_batch_size"]):
+                    idx = perm[start:start + cfg["stage2_batch_size"]]
+                    bx, bm, by = X_tr_p[idx], M_tr_p[idx], Y_tr[idx]
+                    feats = encoder(bx, bm)
+                    logits_cu, logits_fe, logits_zn = head(feats)
+                    loss = (F.cross_entropy(logits_cu, by[:, 0]) +
+                            F.cross_entropy(logits_fe, by[:, 1]) +
+                            F.cross_entropy(logits_zn, by[:, 2]))
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+                    epoch_loss += loss.item() * bx.size(0)
+                    n += bx.size(0)
+                scheduler.step()
+                if (epoch + 1) % 10 == 0 or epoch == 0:
+                    print(f"    Epoch {epoch + 1:2d}: loss={epoch_loss / n:.4f}")
 
         # Evaluate
         head.eval()
